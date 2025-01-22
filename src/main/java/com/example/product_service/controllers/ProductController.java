@@ -2,6 +2,7 @@ package com.example.product_service.controllers;
 
 import com.example.product_service.dtos.NewProduct;
 import com.example.product_service.dtos.ProductDTO;
+import com.example.product_service.exceptions.ProductNotFoundException;
 import com.example.product_service.services.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -26,7 +27,7 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateProductStock(@PathVariable Long id, @RequestBody int stock){
+    public ResponseEntity<?> updateProductStock(@PathVariable Long id, @RequestBody int stock) throws ProductNotFoundException {
         productService.updateProductStock(id, stock);
 
         return new ResponseEntity<>("The product was updated", HttpStatus.OK);

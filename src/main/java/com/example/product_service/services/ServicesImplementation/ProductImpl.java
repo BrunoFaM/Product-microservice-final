@@ -2,6 +2,7 @@ package com.example.product_service.services.ServicesImplementation;
 
 import com.example.product_service.dtos.NewProduct;
 import com.example.product_service.dtos.ProductDTO;
+import com.example.product_service.exceptions.ProductNotFoundException;
 import com.example.product_service.models.Product;
 import com.example.product_service.repositories.ProductRepository;
 import com.example.product_service.services.ProductService;
@@ -39,7 +40,7 @@ public class ProductImpl implements ProductService {
 
 
     @Override
-    public void updateProductStock(Long id, Integer stock) {
+    public void updateProductStock(Long id, Integer stock) throws ProductNotFoundException {
         Product product = getProductById(id);
         product.setStock(stock);
         productRepository.save(product);
@@ -47,7 +48,7 @@ public class ProductImpl implements ProductService {
     }
     //Exception handler is missing
     @Override
-    public Product getProductById(Long id) {
-        return productRepository.findById(id).orElse(null);
+    public Product getProductById(Long id) throws ProductNotFoundException {
+        return productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException());
     }
 }
