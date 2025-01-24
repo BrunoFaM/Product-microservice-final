@@ -6,8 +6,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ExceptionsHandler {
@@ -29,5 +31,12 @@ public class ExceptionsHandler {
     @ExceptionHandler(ProductNotFoundException.class)
     public String handleProductNotFoundException(ProductNotFoundException exception){
         return exception.getMessage();
+    }
+
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(OrderErrorException.class)
+    public String handleOrderErrors(OrderErrorException exception){
+        String formatedError = exception.getMessage().replace("{", "").replace("}", "").replace("=", ": ").replace(", ","\n");
+        return formatedError;
     }
 }
