@@ -9,13 +9,11 @@ import com.example.product_service.models.Product;
 import com.example.product_service.repositories.ProductRepository;
 import com.example.product_service.services.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.crossstore.HashMapChangeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class ProductImpl implements ProductService {
@@ -46,7 +44,6 @@ public class ProductImpl implements ProductService {
     }
 
 
-
     @Override
     public void updateProductStock(Long id, Integer stock) throws ProductNotFoundException {
         Product product = getProductById(id);
@@ -64,12 +61,10 @@ public class ProductImpl implements ProductService {
     private void commitOrder(List<ProductItem> products){
         for(ProductItem productItem : products){
             Product product = productRepository.findById(productItem.productId()).orElse(null);
-            //extra validation, in case the same product was sent two times
             Integer newStock = product.getStock() - productItem.quantity();
-            if(newStock >= 0){
-                product.setStock(newStock);
-                productRepository.save(product);
-            }
+            product.setStock(newStock);
+            productRepository.save(product);
+
 
         }
     }
@@ -81,10 +76,22 @@ public class ProductImpl implements ProductService {
         orderErrors.put("Product " + productId, "only "+  actualStock + " units left");
     }
 
-    private Map<String, String> orderValidation(List<ProductItem> products){
-        //boolean flag = true;
+    private List<ProductItem> mergeEqualProducts(List<ProductItem> products){
+        HashMap<Long , ProductItem> uniqueProducts = new HashMap<>();
+        //create a hashMap, where the products with the same id are merged, in only one product with the stock of each one added
+        for (ProductItem productItem : products) {
+            if(!uniqueProducts.containsKey(productItem.productId())) {
+                uniqueProducts.put(productItem.productId(), productItem);
+            }else {
+                ProductItem product = uniqueProducts.get(productItem.productId());
+                ProductItem newProduct = new ProductItem(product.productId(), product.quantity() + productItem.quantity());
+                uniqueProducts.replace(product.productId(), newProduct);
+            }
+        }
+        return uniqueProducts.values().stream().toList();
+    }
 
-        //i build a map of all the errors in the order
+    private Map<String, String> completeTheErrorMap(List<ProductItem> products){
         orderErrors = new HashMap<>();
         for (ProductItem product : products) {
             Product foundProduct = productRepository.findById(product.productId()).orElse(null);
@@ -96,6 +103,13 @@ public class ProductImpl implements ProductService {
             }
         }
         return orderErrors;
+    }
+
+    private Map<String, String> orderValidation(List<ProductItem> products){
+
+        products =this.mergeEqualProducts(products);
+
+        return completeTheErrorMap(products);
 
     }
 
