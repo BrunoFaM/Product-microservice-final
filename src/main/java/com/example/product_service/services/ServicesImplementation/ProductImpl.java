@@ -8,10 +8,9 @@ import com.example.product_service.exceptions.ProductNotFoundException;
 import com.example.product_service.models.Product;
 import com.example.product_service.repositories.ProductRepository;
 import com.example.product_service.services.ProductService;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.crossstore.HashMapChangeSet;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.util.*;
 
@@ -57,7 +56,7 @@ public class ProductImpl implements ProductService {
         return productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException());
     }
 
-
+    @Transactional
     private void commitOrder(List<ProductItem> products){
         for(ProductItem productItem : products){
             Product product = productRepository.findById(productItem.productId()).orElse(null);
@@ -104,7 +103,7 @@ public class ProductImpl implements ProductService {
         }
         return orderErrors;
     }
-
+    //
     private Map<String, String> orderValidation(List<ProductItem> products){
 
         products =this.mergeEqualProducts(products);
@@ -127,6 +126,5 @@ public class ProductImpl implements ProductService {
         }
 
     }
-
 
 }
