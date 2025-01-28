@@ -75,20 +75,6 @@ public class ProductImpl implements ProductService {
         orderErrors.put("Product " + productId, "only "+  actualStock + " units left");
     }
 
-    private List<ProductItem> mergeEqualProducts(List<ProductItem> products){
-        HashMap<Long , ProductItem> uniqueProducts = new HashMap<>();
-        //create a hashMap, where the products with the same id are merged, in only one product with the stock of each one added
-        for (ProductItem productItem : products) {
-            if(!uniqueProducts.containsKey(productItem.productId())) {
-                uniqueProducts.put(productItem.productId(), productItem);
-            }else {
-                ProductItem product = uniqueProducts.get(productItem.productId());
-                ProductItem newProduct = new ProductItem(product.productId(), product.quantity() + productItem.quantity());
-                uniqueProducts.replace(product.productId(), newProduct);
-            }
-        }
-        return uniqueProducts.values().stream().toList();
-    }
 
     private Map<String, String> completeTheErrorMap(List<ProductItem> products){
         orderErrors = new HashMap<>();
@@ -106,7 +92,6 @@ public class ProductImpl implements ProductService {
     //
     private Map<String, String> orderValidation(List<ProductItem> products){
 
-        products =this.mergeEqualProducts(products);
 
         return completeTheErrorMap(products);
 
