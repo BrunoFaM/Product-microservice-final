@@ -1,14 +1,13 @@
 package com.example.product_service.services.ServicesImplementation;
 
-import com.example.product_service.dtos.NewProduct;
-import com.example.product_service.dtos.ProductDTO;
-import com.example.product_service.dtos.ProductItem;
+import com.example.product_service.dtos.*;
 import com.example.product_service.exceptions.OrderErrorException;
 import com.example.product_service.exceptions.ProductNotFoundException;
 import com.example.product_service.models.Product;
 import com.example.product_service.repositories.ProductRepository;
 import com.example.product_service.services.ProductService;
 import jakarta.transaction.Transactional;
+import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +18,9 @@ public class ProductImpl implements ProductService {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private AmqpTemplate amqpTemplate;
 
     private Map<String, String> orderErrors;
 
@@ -57,7 +59,7 @@ public class ProductImpl implements ProductService {
     }
 
     @Transactional
-    private void commitOrder(List<ProductItem> products){
+    public void commitOrder(List<ProductItem> products){
         for(ProductItem productItem : products){
             Product product = productRepository.findById(productItem.productId()).orElse(null);
             Integer newStock = product.getStock() - productItem.quantity();
@@ -89,12 +91,18 @@ public class ProductImpl implements ProductService {
         }
         return orderErrors;
     }
-    //
-    private Map<String, String> orderValidation(List<ProductItem> products){
+    private Map<String, String> completeTheErrorMapForStockReduce(List<ProductItem> products){
+        HashMap<String, String> orderErrorsMap = new HashMap<>();
+        for (ProductItem product : products) {
+            Product foundProduct = productRepository.findById(product.productId()).orElse(null);
+            if (foundProduct == null){
+                orderErrorsMap.put( "Product " + product.productId() , "not found");
 
-
-        return completeTheErrorMap(products);
-
+            }else if(product.quantity() > foundProduct.getStock()){
+                orderErrorsMap.put("Product " + product.productId(), "only "+  product.quantity() + " units left");
+            }
+        }
+        return orderErrorsMap;
     }
 
 
@@ -102,12 +110,47 @@ public class ProductImpl implements ProductService {
     public void makeOrder(List<ProductItem> products) throws OrderErrorException {
 
         // Errors in order, if is empty, then is a valid order
-        Map<String, String> orderErrors = orderValidation(products);
+        Map<String, String> orderErrors = completeTheErrorMap(products);
+        System.out.println(orderErrors.toString());
 
         if (orderErrors.isEmpty()) {
             commitOrder(products);
         }else {
             throw new OrderErrorException(orderErrors.toString());
+        }
+
+    }
+
+    private String errorFormater(String error){
+        if(error.equals("{}")){
+            return "";
+        }else {
+            return  error.replace("{", "").replace("}", "").replace("=", ": ").replace(", ","\n");
+        }
+
+    }
+
+    @Override
+    public void validateProductList(List<ProductItem> products) {
+        Map<String, String> orderErrors = completeTheErrorMap(products);
+        if (!orderErrors.isEmpty()){
+            throw new OrderErrorException(orderErrors.toString());
+        }
+    }
+    //this is the asynchronous call that reduces stock
+    @Override
+    public void validateStockAndReduce(ReduceStockRequest reduceStockRequest) {
+        Map<String, String> orderErrorsMap = completeTheErrorMap(reduceStockRequest.products());
+        //if is valid right now
+        //send the success or the failure to the server
+        System.out.println("VALIIIIIDDDDDAAATION");
+        if (orderErrorsMap.isEmpty()){
+            System.out.println("TRUE");
+            commitOrder(reduceStockRequest.products());
+            amqpTemplate.convertAndSend("testingExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), true));
+        }else{
+            System.out.println("FALSE");
+            amqpTemplate.convertAndSend("testingExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), false));
         }
 
     }

@@ -43,6 +43,13 @@ public class ProductController {
         return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
     }
 
+    @PostMapping("/order/validation")
+    public ResponseEntity<?> validateOrderReturnErrorMap(@Valid @RequestBody List<ProductItem> products){
+        productService.validateProductList(products);
+        // if valid then get out from here
+        return new ResponseEntity<>( HttpStatus.OK);
+    }
+
     @PostMapping("/order")
     public ResponseEntity<?> isOrderCompleted(@Valid @RequestBody List<ProductItem> products) {
         productService.makeOrder(products);
