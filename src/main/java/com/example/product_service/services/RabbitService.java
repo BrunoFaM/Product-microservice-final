@@ -22,7 +22,7 @@ public class RabbitService {
 
 
 //this queue reduce the stock
-    @RabbitListener(queues = "testingQueue1")
+    @RabbitListener(queues = "testingQueue1", concurrency = "1")
     public void listenerQueue1(ReduceStockRequest reduceStockRequest){
         System.out.println("LISTENER PRODUCT SERVICE");
         productService.validateStockAndReduce(reduceStockRequest);

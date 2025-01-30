@@ -147,10 +147,10 @@ public class ProductImpl implements ProductService {
         if (orderErrorsMap.isEmpty()){
             System.out.println("TRUE");
             commitOrder(reduceStockRequest.products());
-            amqpTemplate.convertAndSend("testingExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), true));
+            amqpTemplate.convertAndSend("responseReduceStockExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), true));
         }else{
             System.out.println("FALSE");
-            amqpTemplate.convertAndSend("testingExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), false));
+            amqpTemplate.convertAndSend("responseReduceStockExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), false));
         }
 
     }
