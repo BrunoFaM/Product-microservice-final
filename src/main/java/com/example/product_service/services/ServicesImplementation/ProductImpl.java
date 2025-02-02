@@ -5,6 +5,7 @@ import com.example.product_service.exceptions.OrderErrorException;
 import com.example.product_service.exceptions.ProductNotFoundException;
 import com.example.product_service.models.Product;
 import com.example.product_service.repositories.ProductRepository;
+import com.example.product_service.services.MessageSenderService;
 import com.example.product_service.services.ProductService;
 import jakarta.transaction.Transactional;
 import org.springframework.amqp.core.AmqpTemplate;
@@ -19,8 +20,9 @@ public class ProductImpl implements ProductService {
     @Autowired
     private ProductRepository productRepository;
 
+
     @Autowired
-    private AmqpTemplate amqpTemplate;
+    private MessageSenderService messageSenderService;
 
     private Map<String, String> orderErrors;
 
@@ -37,6 +39,7 @@ public class ProductImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public ProductDTO createProduct(NewProduct newProduct) {
         Product product = new Product(newProduct.name(), newProduct.description(), newProduct.price(), newProduct.stock());
 
@@ -46,6 +49,7 @@ public class ProductImpl implements ProductService {
 
 
     @Override
+    @Transactional
     public void updateProductStock(Long id, Integer stock) throws ProductNotFoundException {
         Product product = getProductById(id);
         product.setStock(stock);
@@ -62,9 +66,15 @@ public class ProductImpl implements ProductService {
     public void commitOrder(List<ProductItem> products){
         for(ProductItem productItem : products){
             Product product = productRepository.findById(productItem.productId()).orElse(null);
+
             Integer newStock = product.getStock() - productItem.quantity();
             product.setStock(newStock);
             productRepository.save(product);
+            if(newStock < 10){
+                System.out.println("Inside the sendLowStock for");
+                System.out.println(product.getStock());
+                messageSenderService.sendLowStockMessage(new ProductLowStockDTO(product.getId(), product.getName(), product.getStock()));
+            }
 
 
         }
@@ -95,11 +105,12 @@ public class ProductImpl implements ProductService {
         HashMap<String, String> orderErrorsMap = new HashMap<>();
         for (ProductItem product : products) {
             Product foundProduct = productRepository.findById(product.productId()).orElse(null);
-            if (foundProduct == null){
-                orderErrorsMap.put( "Product " + product.productId() , "not found");
-
-            }else if(product.quantity() > foundProduct.getStock()){
-                orderErrorsMap.put("Product " + product.productId(), "only "+  product.quantity() + " units left");
+            if (foundProduct != null) {
+                if (product.quantity() > foundProduct.getStock()) {
+                    orderErrorsMap.put("Product " + product.productId(), "only " + product.quantity() + " units left");
+                }
+            }else {
+                orderErrorsMap.put("Product " + product.productId(), "not found");
             }
         }
         return orderErrorsMap;
@@ -111,21 +122,11 @@ public class ProductImpl implements ProductService {
 
         // Errors in order, if is empty, then is a valid order
         Map<String, String> orderErrors = completeTheErrorMap(products);
-        System.out.println(orderErrors.toString());
 
         if (orderErrors.isEmpty()) {
             commitOrder(products);
         }else {
             throw new OrderErrorException(orderErrors.toString());
-        }
-
-    }
-
-    private String errorFormater(String error){
-        if(error.equals("{}")){
-            return "";
-        }else {
-            return  error.replace("{", "").replace("}", "").replace("=", ": ").replace(", ","\n");
         }
 
     }
@@ -137,20 +138,20 @@ public class ProductImpl implements ProductService {
             throw new OrderErrorException(orderErrors.toString());
         }
     }
+
+
     //this is the asynchronous call that reduces stock
     @Override
     public void validateStockAndReduce(ReduceStockRequest reduceStockRequest) {
-        Map<String, String> orderErrorsMap = completeTheErrorMap(reduceStockRequest.products());
+        Map<String, String> orderErrorsMap = completeTheErrorMapForStockReduce(reduceStockRequest.products());
         //if is valid right now
         //send the success or the failure to the server
-        System.out.println("VALIIIIIDDDDDAAATION");
         if (orderErrorsMap.isEmpty()){
-            System.out.println("TRUE");
             commitOrder(reduceStockRequest.products());
-            amqpTemplate.convertAndSend("responseReduceStockExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), true));
+            messageSenderService.sendResponseReduceStockMessage(new ResponseReduceStock(reduceStockRequest.orderId(), true));
         }else{
-            System.out.println("FALSE");
-            amqpTemplate.convertAndSend("responseReduceStockExchange", "routing.key2", new ResponseReduceStock(reduceStockRequest.orderId(), false));
+            System.out.println("All goood");
+            messageSenderService.sendResponseReduceStockMessage(new ResponseReduceStock(reduceStockRequest.orderId(), false));
         }
 
     }
