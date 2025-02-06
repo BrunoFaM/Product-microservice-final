@@ -58,6 +58,7 @@ public class ProductImpl implements ProductService {
     }
     //Exception handler is missing
     @Override
+    @Transactional
     public Product getProductById(Long id) throws ProductNotFoundException {
         return productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException());
     }
@@ -154,6 +155,17 @@ public class ProductImpl implements ProductService {
             messageSenderService.sendResponseReduceStockMessage(new ResponseReduceStock(reduceStockRequest.orderId(), false));
         }
 
+    }
+    @Override
+    public List<ProductDetails> giveTheDetailsOfAll(List<ProductItem> products) throws ProductNotFoundException {
+        List<ProductDetails> detailsList = new ArrayList<>();
+
+        for(ProductItem productItem : products){
+            Product product = this.getProductById(productItem.productId());
+            detailsList.add(new ProductDetails(product.getId(),product.getName(), productItem.quantity(), product.getPrice(), productItem.quantity() * product.getPrice()));
+        }
+
+        return detailsList;
     }
 
 }
